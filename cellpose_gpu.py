@@ -12,23 +12,6 @@ from typing import Set
 import pickle
 import matplotlib.pyplot as plt
 
-def find_files(directory: str, format: str = '.svs') -> Set[str]:
-    """
-    Find all folders/subdirectories that contain files with the specified format.
-    :param directory: The root directory to search for files.
-    :param format: The type of the files to search for (default is '.svs', for the WSI file search).
-    :return: A set of directories containing files with the specified format
-    """
-    svs_directories = set()  # Use a set to store unique parent directories
-
-    for root, dirs, files in os.walk(directory):
-        for file in files:
-            if file.endswith(format):
-                svs_directories.add(root)  # Use add() to add unique directories
-
-    return svs_directories
-
-
 class CellposeProcessor:
 
     def __init__(self, use_gpu=True, model_type="nuclei"):
