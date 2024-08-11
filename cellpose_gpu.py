@@ -12,39 +12,6 @@ from typing import Set
 import pickle
 import matplotlib.pyplot as plt
 
-
-# util funcs
-def copy_random_png_images(source_dir: str, target_dir: str, percentage: int) -> None:
-    """
-    Randomly copy percentage% png images from source directory/folder, including the sub folders to target directory
-    :param source_dir:  source directory/folder
-    :param target_dir:  target directory/folder
-    :param percentage:  an integer from [0, 100]
-    :return:
-    """
-
-    for root, dirs, files in os.walk(source_dir):
-        for subfolder in dirs:
-            source_subfolder = os.path.join(root, subfolder)
-            target_subfolder = os.path.join(target_dir, os.path.relpath(source_subfolder, source_dir))
-            os.makedirs(target_subfolder, exist_ok=True)
-
-            # List all .png files in the source subfolder
-            png_files = [file for file in os.listdir(source_subfolder) if file.lower().endswith(".png")]
-
-            # Calculate the number of .png files to keep
-            num_png_files_to_keep = int(len(png_files) * percentage / 100)
-
-            # Randomly select .png files to copy
-            png_files_to_copy = random.sample(png_files, num_png_files_to_keep)
-
-            # Copy selected .png files to the target subfolder
-            for png_file_to_copy in png_files_to_copy:
-                source_png_file = os.path.join(source_subfolder, png_file_to_copy)
-                target_png_file = os.path.join(target_subfolder, png_file_to_copy)
-                shutil.copy2(source_png_file, target_png_file)
-
-
 def find_files(directory: str, format: str = '.svs') -> Set[str]:
     """
     Find all folders/subdirectories that contain files with the specified format.
@@ -65,6 +32,7 @@ def find_files(directory: str, format: str = '.svs') -> Set[str]:
 class CellposeProcessor:
 
     def __init__(self, use_gpu=True, model_type="nuclei"):
+        # Initialize the Cellpose model with the specified type and GPU support 
         self.gpu = use_gpu
         self.model = models.Cellpose(model_type=model_type, gpu=use_gpu)
 
@@ -76,9 +44,11 @@ class CellposeProcessor:
                    invert=True):
 
         """
-        reference: cellpose.models.Cellpose.eval() method
+        Perform inference on the provided image array using the Cellpose model.
+        
+        code reference: cellpose.models.Cellpose.eval() method
 
-        :param  image_array:
+        :param  image_array: The image data to be processed 
         :param  channels: 0=grayscale, 1=red, 2=green, 3=blue. (0=None, will set to zero)
         :param  diameter: (30 pixels in the cyto model and 17 pixels in the case of the nuclei model)
         :param  flow_threshold: the maximum allowed error of the flows for each mask. The default is 0.4
@@ -107,6 +77,12 @@ class CellposeProcessor:
                                min_size=min_size, invert=invert)
 
     def load_image(self, img_path):
+        """
+        Load an image from the specified path and convert it to an RGB numpy array.
+
+        :param img_path: Path to the image file.
+        :return: Numpy array of the RGB image.
+        """
 
         image = np.array(Image.open(img_path).convert('RGB'))
         return image
@@ -114,10 +90,9 @@ class CellposeProcessor:
 
     def save_plots_grayscale(self, image_array, output_dir):
         """
-        :param image_array: image as array
+        :param image_array: 2d image as array
         :param output_dir: complete path for output, e.g., /xxxx_instance.png
-        :param cmap_matplotlib:
-        :return:
+        :return: 
         """
 
         # binary map
@@ -129,12 +104,13 @@ class CellposeProcessor:
         return 1 / (1 + np.exp(-x))
 
     def inference_instance_loop(self, image_files, output_dir, suffix):
-
         """
-        Inference all *.png files  (image_files, a list of PNG file path). Save results (e.g., *_instance.png) to
-        output_dir
-        :param image_files: list of directories ['/directory/to/1.png', '/directory/to/2.png', ... ]
-        :return:
+        Perform inference on a list of PNG images and save results to the specified output directory.
+        
+        :param image_files: List of file paths to PNG images. Example: ['/directory/to/1.png', '/directory/to/2.png', ... ]
+        :param output_dir: Directory where the results will be saved.
+        :param suffix: Suffixes indicating the type of results to save. Can be a single string (e.g., 'binary') or a list of strings.
+        :return: None
         """
         for image_file in image_files:
             try:
@@ -144,15 +120,17 @@ class CellposeProcessor:
 
                 basename = os.path.basename(image_file)
 
+                # If the suffix is a string and contains 'binary', save the binary mask as a grayscale image
                 if isinstance(suffix, str) and 'binary' in suffix:
                     output = os.path.join(output_dir, basename.replace(".png", suffix))
                     self.save_plots_grayscale(mask, output)
 
+                 # If the suffix is a list of strings, iterate over each suffix and save different results
                 elif isinstance(suffix[0], str):
                     for s in suffix:
                         output = os.path.join(output_dir, basename.replace(".png", s))
 
-                        # cell probability map
+                        # save cell probability map
                         if s == '_cellprob.npy':
                             mask_nonzero = np.where(mask > 0, 1, 0)
                             P = self._sigmoid(flows[2]) * mask_nonzero
@@ -164,7 +142,7 @@ class CellposeProcessor:
                             binary_map = (mask > 0).astype(np.uint8)
                             self.save_plots_grayscale(binary_map * 255, output)
 
-                        # save contours (png) and instance map (npy)
+                        # save contours (png format) and instance map (npy format)
                         if s == '_contours.png':
 
                             unique_labels = np.unique(mask)
@@ -176,50 +154,43 @@ class CellposeProcessor:
                                 contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
                                 cv2.drawContours(image, contours, -1, (0, 255, 0), 3)
+                            
                             Image.fromarray(image).save(output)
 
                             # save instance map as .npy File
                             np.save(output.replace(".png", ".npy"), mask)
 
             except Exception as e:
+                # Handle any IO errors that occur during processing
                 print(f'{image_file} has IO error')
 
 
 if __name__ == "__main__":
-    # path_to_patch_folder is the root directory of all patch (png) folder
-    # absolute_input_path/relative_path: path/to/png_folders
-    absolute_input_path = '/home/guoj5/Desktop/wsi-select/Version2_patch_sampled/rodent_kidney_images'
-    relative_input_path = '4-ADR associated mouse FSGS-2022'
-    absolute_output_path = '/home/guoj5/Desktop/wsi-select/Version2_patch_sampled_predictions/cellpose_pred/rodent_kidney_images'
-    path_to_patch_folder = os.path.join(absolute_input_path, relative_input_path)
+    
+    # The base directory containing multiple folders of PNG files.
+    base_image_dir = '/path/to/base/folder'
 
-    # find all folders of .png (patch) in input path
-    if not os.path.exists(relative_input_path + '_data_dirs.pkl'):
-        data_dirs = list(find_files(path_to_patch_folder, format='.png'))
-        with open(relative_input_path + '_data_dirs.pkl', 'wb') as binary_file:
-            pickle.dump(data_dirs, binary_file)
-    else:
-        with open(relative_input_path + '_data_dirs.pkl', 'rb') as file:
-            data_dirs = pickle.load(file)
+    # Subdirectory within the base directory that contains the PNG files
+    png_subdir_name  = 'subfolder'
 
+    # Output directory for predictions
+    output_predictions_dir = '/path/to/result'
+    
+    # Full path to the folder containing the PNG files
+    png_folder_path = os.path.join(base_image_dir, png_subdir_name)
 
+    # Create the output directory if it does not exist
+    if not os.path.exists(output_predictions_dir):
+        os.makedirs(output_predictions_dir)
+        
     # model
     cp = CellposeProcessor(use_gpu=True, model_type="nuclei")
     cp.time_start = time.time()
 
-    resume_dataset = 0
-    # inference each folder, and save to absolute_output_path with original structure
-    for i in tqdm(range(resume_dataset, len(data_dirs))):
-        data_dir = data_dirs[i]
-        output_dir = os.path.join(absolute_output_path, data_dir[data_dir.find(relative_input_path):])
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        else: continue
-
-        png_files = glob.glob(os.path.join(data_dir, '*.png'))
-        image_files = [file for file in png_files if 'mask' not in file]
-
-        cp.inference_instance_loop(image_files=image_files, output_dir=output_dir,
+    # Retrieve all PNG files from the specified directory
+    image_files = glob.glob(os.path.join(png_folder_path, '*.png'))
+    
+    cp.inference_instance_loop(image_files=image_files, output_dir=output_predictions_dir,
                                    suffix=['_contours.png'])
 
     cp.run_time = time.time() - cp.time_start
