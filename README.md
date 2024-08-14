@@ -9,7 +9,7 @@ cellpose_gpu.py
 
 - Cellpose paper [link](https://www.nature.com/articles/s41592-020-01018-x)
 - Cellpose github [link](https://github.com/MouseLand/cellpose)
-- A paper that provides an assessment of cell nuclei AI foundation models (including Cellpose) on kidney pathology images [link TBD](TBD) 
+- This repo is based on the paper: [Assessment of Cell Nuclei AI Foundation Models in Kidney Pathology](https://arxiv.org/abs/2408.06381)
 
 
 ## Requirements
